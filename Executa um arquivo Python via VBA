@@ -1,0 +1,15 @@
+Sub executa_py()
+    Dim pythonScriptPath As String
+    Dim pythonExePath As String
+    Dim cmd As String
+
+    ' Defina o caminho para o executável Python e o script
+    pythonExePath = "C:\Bernardo\Python\Launcher\py.exe" ' Ajuste de acordo com o caminho de instalação do seu Python
+    pythonScriptPath = "C:\Bernardo\Rep_scripts\py\TESTE.py" ' Ajuste para onde seu script está salvo
+
+    ' Monte o comando
+    cmd = pythonExePath & " " & pythonScriptPath
+
+    ' Use a função Shell para executar o script Python
+    Shell cmd, vbNormalFocus
+End Sub
