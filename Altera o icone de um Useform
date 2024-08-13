@@ -1,0 +1,477 @@
+Option Explicit
+
+'Notas: mova isso para todos os userforms
+
+'Private Sub UserForm_Initialize()
+    'Call FormToTaskBar( _
+        Form:=Me, _
+        IconFromFile:=ThisWorkbook.Path & "\Change Icon.ico", _
+        ThumbnailTooltip:="", _
+        HideExcel:=True)
+'End Sub
+
+'Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    'Call ResetTaskbar
+'End Sub
+
+Private Type GUID
+    Data1 As Long
+    Data2 As Integer
+    Data3 As Integer
+    Data4(0 To 7) As Byte
+End Type
+
+Private Type PROPERTYKEY
+    fmtid As GUID
+    pid As Long
+End Type
+
+#If VBA7 Then
+
+    #If Win64 Then
+        Private Declare PtrSafe Function GetWindowLong _
+            Lib "user32" Alias "GetWindowLongPtrA" ( _
+            ByVal hwnd As LongPtr, _
+            ByVal nIndex As Long) As LongPtr
+        Private Declare PtrSafe Function SetWindowLong _
+            Lib "user32" Alias "SetWindowLongPtrA" ( _
+            ByVal hwnd As LongPtr, _
+            ByVal nIndex As Long, _
+            ByVal dwNewLong As LongPtr) As LongPtr
+    #Else
+        Private Declare PtrSafe Function GetWindowLong _
+            Lib "user32" Alias "GetWindowLongA" ( _
+            ByVal hwnd As LongPtr, _
+            ByVal nIndex As Long) As LongPtr
+        Private Declare PtrSafe Function SetWindowLong _
+            Lib "user32" Alias "SetWindowLongA" ( _
+            ByVal hwnd As LongPtr, _
+            ByVal nIndex As Long, _
+            ByVal dwNewLong As Long) As LongPtr
+    #End If
+  
+    Private Declare PtrSafe Sub CopyMemory _
+        Lib "kernel32" Alias "RtlMoveMemory" ( _
+        Destination As Any, Source As Any, _
+        ByVal Length As LongPtr)
+    Private Declare PtrSafe Function DispCallFunc _
+        Lib "oleAut32.dll" ( _
+        ByVal pvInstance As LongPtr, _
+        ByVal offsetinVft As LongPtr, _
+        ByVal CallConv As Long, _
+        ByVal retTYP As Integer, _
+        ByVal paCNT As Long, _
+        ByRef paTypes As Integer, _
+        ByRef paValues As LongPtr, _
+        ByRef retVAR As Variant) As Long
+    Private Declare PtrSafe Sub SetLastError _
+        Lib "kernel32.dll" ( _
+        ByVal dwErrCode As Long)
+    Private Declare PtrSafe Function CoCreateInstance _
+        Lib "ole32" ( _
+        ByRef rclsid As GUID, _
+        ByVal pUnkOuter As LongPtr, _
+        ByVal dwClsContext As Long, _
+        ByRef riid As GUID, _
+        ByRef ppv As LongPtr) As Long
+    Private Declare PtrSafe Function ExtractIconA _
+        Lib "Shell32.dll" ( _
+        ByVal hInst As LongPtr, _
+        ByVal lpszExeFileName As String, _
+        ByVal nIconIndex As LongPtr) As Long
+    Private Declare PtrSafe Function IUnknown_GetWindow _
+        Lib "shlwapi" Alias "#172" ( _
+        ByVal pIUnk As IUnknown, _
+        ByVal hwnd As LongPtr) As Long
+    Private Declare PtrSafe Function CLSIDFromString _
+        Lib "ole32" ( _
+        ByVal OleStringCLSID As LongPtr, _
+        ByRef cGUID As Any) As Long
+    Private Declare PtrSafe Function SHGetPropertyStoreForWindow _
+        Lib "Shell32.dll" ( _
+        ByVal hwnd As LongPtr, _
+        ByRef riid As GUID, _
+        ByRef ppv As LongPtr) As Long
+    Private Declare PtrSafe Function FindWindow _
+        Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, _
+        ByVal lpWindowName As String) As LongPtr
+    Private Declare PtrSafe Function ShowWindow _
+        Lib "user32" ( _
+        ByVal hwnd As LongPtr, _
+        ByVal nCmdShow As Long) As Long
+    Private Declare PtrSafe Function SetProp _
+        Lib "user32" Alias "SetPropA" ( _
+        ByVal hwnd As LongPtr, _
+        ByVal lpString As String, _
+        ByVal hData As LongPtr) As Long
+    Private Declare PtrSafe Function GetProp _
+        Lib "user32" Alias "GetPropA" ( _
+        ByVal hwnd As LongPtr, _
+        ByVal lpString As String) As LongPtr
+    Private Declare PtrSafe Function RemoveProp _
+        Lib "user32" Alias "RemovePropA" ( _
+        ByVal hwnd As LongPtr, _
+        ByVal lpString As String) As LongPtr
+    Private Declare PtrSafe Function IsWindowVisible _
+        Lib "user32" ( _
+        ByVal hwnd As LongPtr) As Long
+    Private Declare PtrSafe Function DrawMenuBar _
+        Lib "user32" ( _
+        ByVal hwnd As LongPtr) As Long
+    Private Declare PtrSafe Function BringWindowToTop _
+        Lib "user32" ( _
+        ByVal hwnd As LongPtr) As Long
+    Private Declare PtrSafe Function SetForegroundWindow _
+        Lib "user32" ( _
+        ByVal hwnd As LongPtr) As Long
+    Private Declare PtrSafe Function SendMessage _
+        Lib "user32" Alias "SendMessageA" ( _
+        ByVal hwnd As LongPtr, _
+        ByVal wMsg As Long, _
+        ByVal wParam As LongPtr, _
+        lParam As LongPtr) As Long
+    Private Declare PtrSafe Function DeleteObject _
+        Lib "gdi32" ( _
+        ByVal hObject As LongPtr) As Long
+  
+#Else
+
+    Private Declare Function GetWindowLong _
+        Lib "user32" Alias "GetWindowLongA" ( _
+        ByVal hwnd As Long, _
+        ByVal nIndex As Long) As Long
+    Private Declare Function SetWindowLong _
+        Lib "user32" Alias "SetWindowLongA" ( _
+        ByVal hwnd As Long, _
+        ByVal nIndex As Long, _
+        ByVal dwNewLong As Long) As Long
+    Private Declare Sub CopyMemory _
+        Lib "kernel32" Alias "RtlMoveMemory" ( _
+        Destination As Any, Source As Any, _
+        ByVal Length As Long)
+    Private Declare Function DispCallFunc _
+        Lib "oleAut32.dll" ( _
+        ByVal pvInstance As Long, _
+        ByVal offsetinVft As Long, _
+        ByVal CallConv As Long, _
+        ByVal retTYP As Integer, _
+        ByVal paCNT As Long, _
+        ByRef paTypes As Integer, _
+        ByRef paValues As Long, _
+        ByRef retVAR As Variant) As Long
+    Private Declare Sub SetLastError _
+        Lib "kernel32.dll" ( _
+        ByVal dwErrCode As Long)
+    Private Declare Function CoCreateInstance _
+        Lib "ole32" (ByRef rclsid As GUID, _
+        ByVal pUnkOuter As Long, _
+        ByVal dwClsContext As Long, _
+        ByRef riid As GUID, _
+        ByRef ppv As Long) As Long
+    Private Declare Function ExtractIconA _
+        Lib "Shell32.dll" ( _
+        ByVal hInst As Long, _
+        ByVal lpszExeFileName As String, _
+        ByVal nIconIndex As Long) As Long
+    Private Declare Function IUnknown_GetWindow _
+        Lib "shlwapi" Alias "#172" ( _
+        ByVal pIUnk As IUnknown, _
+        ByVal hwnd As Long) As Long
+    Private Declare Function CLSIDFromString _
+        Lib "ole32" ( _
+        ByVal OleStringCLSID As Long, _
+        ByRef cGUID As Any) As Long
+    Private Declare Function SHGetPropertyStoreForWindow _
+        Lib "Shell32.dll" ( _
+        ByVal hwnd As Long, _
+        ByRef riid As GUID, _
+        ByRef ppv As Long) As Long
+    Private Declare Function FindWindow _
+        Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, _
+        ByVal lpWindowName As String) As Long
+    Private Declare Function ShowWindow _
+        Lib "user32" (ByVal hwnd As Long, _
+        ByVal nCmdShow As Long) As Long
+    Private Declare Function SetProp _
+        Lib "user32" Alias "SetPropA" ( _
+        ByVal hwnd As Long, _
+        ByVal lpString As String, _
+        ByVal hData As Long) As Long
+    Private Declare Function GetProp _
+        Lib "user32" Alias "GetPropA" ( _
+        ByVal hwnd As Long, _
+        ByVal lpString As String) As Long
+    Private Declare Function RemoveProp _
+        Lib "user32" Alias "RemovePropA" ( _
+        ByVal hwnd As Long, _
+        ByVal lpString As String) As Long
+    Private Declare Function IsWindowVisible _
+        Lib "user32" ( _
+        ByVal hwnd As Long) As Long
+    Private Declare Function DrawMenuBar _
+        Lib "user32" ( _
+        ByVal hwnd As Long) As Long
+    Private Declare Function BringWindowToTop _
+        Lib "user32" ( _
+        ByVal hwnd As Long) As Long
+    Private Declare Function SetForegroundWindow _
+        Lib "user32" ( _
+        ByVal hwnd As Long) As Long
+    Private Declare Function SendMessage _
+        Lib "user32" Alias "SendMessageA" ( _
+        ByVal hwnd As Long, _
+        ByVal wMsg As Long, _
+        ByVal wParam As Long, _
+        lParam As Long) As Long
+    Private Declare Function DeleteObject _
+        Lib "gdi32" ( _
+        ByVal hObject As Long) As Long
+
+#End If
+
+Public Sub FormToTaskBar _
+    ( _
+        ByVal Form As Object, _
+        Optional ByVal IconFromPic As StdPicture, _
+        Optional ByVal IconFromFile As String, _
+        Optional ByVal FileIconIndex As Long = 0, _
+        Optional ThumbnailTooltip As String, _
+        Optional ByVal HideExcel As Boolean _
+    )
+
+    Const VT_LPWSTR = 31
+  
+    #If Win64 Then
+        Const vTblOffsetFac_32_64 = 2
+        Dim hform As LongLong, _
+        hApp As LongLong, _
+        hVbe As LongLong, _
+        pPstore As LongLong, _
+        pTBarList As LongLong
+        Dim PV(0 To 2) As LongLong
+      
+        PV(0) = VT_LPWSTR: PV(1) = StrPtr("Dummy")
+    #Else
+        Const vTblOffsetFac_32_64 = 1
+        Dim hform As Long, _
+        hApp As Long, _
+        hVbe As Long, _
+        pPstore As Long, _
+        pTBarList As Long
+        Dim PV(0 To 3) As Long
+      
+        PV(0) = VT_LPWSTR: PV(2) = StrPtr("Dummy")
+    #End If
+
+
+    Const IPropertyKey_SetValue = 24 * vTblOffsetFac_32_64
+    Const IPropertyKey_Commit = 28 * vTblOffsetFac_32_64
+    Const ITASKLIST3_HrInit = 12 * vTblOffsetFac_32_64
+    Const ITASKLIST3_AddTab = 16 * vTblOffsetFac_32_64
+    Const ITASKLIST3_DeleteTab = 20 * vTblOffsetFac_32_64
+    Const ITASKLIST3_ActivateTab = 24 * vTblOffsetFac_32_64
+    Const ITASKLIST3_SetThumbnailTooltip = 76 * vTblOffsetFac_32_64
+
+
+    Const IID_PropertyStore = "{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}"
+    Const IID_PropertyKey = "{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"
+    Const CLSID_TASKLIST = "{56FDF344-FD6D-11D0-958A-006097C9A090}"
+    Const IID_TASKLIST3 = "{EA1AFB91-9E28-4B86-90E9-9E9F8A5EEFAF}"
+
+    Const CLSCTX_INPROC_SERVER = &H1
+    Const S_OK = 0
+    Const CC_STDCALL = 4
+
+    Const GWL_STYLE = (-16)
+    Const WS_MINIMIZEBOX = &H20000
+    Const GWL_HWNDPARENT = (-8)
+
+    Dim tClsID As GUID, tIID As GUID, tPK As PROPERTYKEY
+
+    Call IUnknown_GetWindow(Form, VarPtr(hform))
+    Call SetProp(Application.hwnd, "hForm", hform)
+    Call SetWindowLong(hform, GWL_HWNDPARENT, 0)
+    Call SetWindowLong(hform, GWL_STYLE, GetWindowLong(hform, GWL_STYLE) Or WS_MINIMIZEBOX)
+    Call DrawMenuBar(hform)
+  
+    If Not IconFromPic Is Nothing Then
+        Call addicon(Form, IconFromPic, , FileIconIndex)
+    ElseIf Len(IconFromFile) Then
+        Call addicon(Form, , IconFromFile, FileIconIndex)
+    End If
+
+    Call CLSIDFromString(StrPtr(IID_PropertyStore), tIID)
+    If SHGetPropertyStoreForWindow(hform, tIID, pPstore) = S_OK Then
+        Call CLSIDFromString(StrPtr(IID_PropertyKey), tPK)
+        tPK.pid = 5
+        Call vtblCall(pPstore, IPropertyKey_SetValue, vbLong, _
+            CC_STDCALL, VarPtr(tPK), VarPtr(PV(0)))
+        Call vtblCall(pPstore, IPropertyKey_Commit, vbLong, CC_STDCALL)
+        Call CLSIDFromString(StrPtr(CLSID_TASKLIST), tClsID)
+        Call CLSIDFromString(StrPtr(IID_TASKLIST3), tIID)
+        If CoCreateInstance(tClsID, 0, CLSCTX_INPROC_SERVER, tIID, pTBarList) = S_OK Then
+            SetProp Application.hwnd, "pTBarList", pTBarList
+            Call vtblCall(pTBarList, ITASKLIST3_HrInit, vbLong, CC_STDCALL)
+            Call vtblCall(pTBarList, ITASKLIST3_DeleteTab, vbLong, _
+                CC_STDCALL, hform)
+            Call vtblCall(pTBarList, ITASKLIST3_AddTab, vbLong, _
+                CC_STDCALL, hform)
+            Call vtblCall(pTBarList, ITASKLIST3_ActivateTab, vbLong, _
+                CC_STDCALL, hform)
+            If Len(ThumbnailTooltip) Then
+                Call vtblCall(pTBarList, ITASKLIST3_SetThumbnailTooltip, vbLong, _
+                    CC_STDCALL, hform, StrPtr(ThumbnailTooltip))
+            End If
+            If HideExcel Then
+                Application.Visible = False
+                hApp = Application.hwnd
+                Call SetProp(Application.hwnd, "hApp", hApp)
+                Call vtblCall(pTBarList, ITASKLIST3_DeleteTab, vbLong, _
+                    CC_STDCALL, hApp)
+                hVbe = FindWindow("wndclass_desked_gsk", vbNullString)
+                If IsWindowVisible(hVbe) Then
+                    Call SetProp(Application.hwnd, "hVbe", hVbe)
+                    Call ShowWindow(hVbe, 0)
+                    Call vtblCall(pTBarList, ITASKLIST3_DeleteTab, vbLong, _
+                        CC_STDCALL, hVbe)
+                End If
+            End If
+        End If
+    End If
+    Call SetForegroundWindow(hform): Call BringWindowToTop(hform)
+  
+End Sub
+
+Public Sub ResetTaskbar(Optional ByVal Dummy As Boolean)
+
+    #If Win64 Then
+        Const vTblOffsetFac_32_64 = 2
+        Dim pTBarList As LongPtr, hform As LongPtr, hApp As LongPtr, hVbe As LongPtr
+    #Else
+        Const vTblOffsetFac_32_64 = 1
+        Dim pTBarList As Long, hform As Long, hApp As Long, hVbe As Long
+    #End If
+
+    Const ITASKLIST3_AddTab = 16 * vTblOffsetFac_32_64
+    Const ITASKLIST3_DeleteTab = 20 * vTblOffsetFac_32_64
+    Const CC_STDCALL = 4
+  
+    Dim i As Long
+
+    pTBarList = GetProp(Application.hwnd, "pTBarList")
+    hform = GetProp(Application.hwnd, "hForm")
+    hApp = GetProp(Application.hwnd, "hApp")
+    hVbe = GetProp(Application.hwnd, "hVbe")
+
+    Call vtblCall(pTBarList, ITASKLIST3_DeleteTab, vbLong, _
+        CC_STDCALL, hform)
+    For i = 1 To 2
+        Call vtblCall(pTBarList, ITASKLIST3_AddTab, vbLong, _
+        CC_STDCALL, Choose(i, hApp, hVbe))
+    Next i
+  
+End Sub
+
+Private Sub addicon(ByVal Form As Object, _
+    Optional IconFromPic As StdPicture, _
+    Optional ByVal IconFromFile As String, _
+    Optional ByVal Index As Long = 0)
+  
+    #If Win64 Then
+        Dim hwnd As LongPtr, hIcon As LongPtr
+    #Else
+        Dim hwnd As Long, hIcon As Long
+    #End If
+  
+    Const WM_SETICON = &H80
+    Const ICON_SMALL = 0
+    Const ICON_BIG = 1
+
+    Dim N As Long, S As String
+    
+    Call IUnknown_GetWindow(Form, VarPtr(hwnd))
+        
+    If Not IconFromPic Is Nothing Then
+        hIcon = IconFromPic.Handle
+        Call SendMessage(hwnd, WM_SETICON, ICON_SMALL, ByVal hIcon)
+        Call SendMessage(hwnd, WM_SETICON, ICON_BIG, ByVal hIcon)
+    ElseIf Len(IconFromFile) Then
+        If Dir(IconFromFile, vbNormal) = vbNullString Then
+            Exit Sub
+        End If
+        N = InStrRev(IconFromFile, ".")
+        S = LCase(Mid(IconFromFile, N + 1))
+        Select Case S
+            Case "exe", "ico", "dll"
+            Case Else
+                Err.Raise 5
+        End Select
+        If hwnd = 0 Then
+            Exit Sub
+        End If
+        hIcon = ExtractIconA(0, IconFromFile, Index)
+        If hIcon <> 0 Then
+            Call SendMessage(hwnd, WM_SETICON, ICON_SMALL, ByVal hIcon)
+        End If
+    End If
+    
+    Call DrawMenuBar(hwnd)
+    DeleteObject hIcon
+  
+End Sub
+
+
+#If Win64 Then
+    Private Function vtblCall( _
+        ByVal InterfacePointer As LongLong, _
+        ByVal VTableOffset As Long, _
+        ByVal FunctionReturnType As Long, _
+        ByVal CallConvention As Long, _
+        ParamArray FunctionParameters() As Variant) As Variant
+
+    Dim vParamPtr() As LongLong
+#Else
+    Private Function vtblCall(ByVal InterfacePointer As Long, _
+        ByVal VTableOffset As Long, _
+        ByVal FunctionReturnType As Long, _
+        ByVal CallConvention As Long, _
+        ParamArray FunctionParameters() As Variant) As Variant
+
+    Dim vParamPtr() As Long
+#End If
+
+    If InterfacePointer = 0& Or VTableOffset < 0& Then Exit Function
+    If Not (FunctionReturnType And &HFFFF0000) = 0& Then Exit Function
+
+    Dim pIndex As Long, pCount As Long
+    Dim vParamType() As Integer
+    Dim vRtn As Variant, vParams() As Variant
+
+    vParams() = FunctionParameters()
+    pCount = Abs(UBound(vParams) - LBound(vParams) + 1&)
+    If pCount = 0& Then
+        ReDim vParamPtr(0 To 0)
+        ReDim vParamType(0 To 0)
+    Else
+        ReDim vParamPtr(0 To pCount - 1&)
+        ReDim vParamType(0 To pCount - 1&)
+        For pIndex = 0& To pCount - 1&
+            vParamPtr(pIndex) = VarPtr(vParams(pIndex))
+            vParamType(pIndex) = VarType(vParams(pIndex))
+        Next
+    End If
+
+    pIndex = DispCallFunc(InterfacePointer, VTableOffset, _
+        CallConvention, FunctionReturnType, pCount, _
+        vParamType(0), vParamPtr(0), vRtn)
+    If pIndex = 0& Then
+        vtblCall = vRtn
+    Else
+        SetLastError pIndex
+    End If
+
+End Function
+
+
